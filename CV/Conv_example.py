@@ -6,13 +6,11 @@ import numpy as np
 import os.path
 import sys
 import shutil
-from torchsummary import summary
 from tqdm import tqdm
 import torch.nn as nn
 import torchvision
 from torchvision import datasets, models, transforms
 import time
-import torch.optim as optim
 import cv2
 from scipy.special import softmax
 from torchsummary import summary
