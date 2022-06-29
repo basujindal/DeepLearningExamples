@@ -5,15 +5,6 @@
   "added_tokens": [
     {
       "id": 0,
-      "content": "[PAD]",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 1,
       "content": "[SOS]",
       "single_word": false,
       "lstrip": false,
@@ -22,8 +13,17 @@
       "special": true
     },
     {
-      "id": 2,
+      "id": 1,
       "content": "[EOS]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 2,
+      "content": "[PAD]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -103,9 +103,9 @@
     "end_of_word_suffix": null,
     "fuse_unk": false,
     "vocab": {
-      "[PAD]": 0,
-      "[SOS]": 1,
-      "[EOS]": 2,
+      "[SOS]": 0,
+      "[EOS]": 1,
+      "[PAD]": 2,
       "!": 3,
       "#": 4,
       "$": 5,
