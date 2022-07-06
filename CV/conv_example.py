@@ -1,29 +1,21 @@
 import torch
 import torch.optim as optim
-import os
 import matplotlib.pyplot as plt
 import numpy as np
-import os.path
-import sys
-import shutil
 from tqdm import tqdm
 import torch.nn as nn
 import torchvision
-from torchvision import datasets, models, transforms
-import time
-import cv2
-from scipy.special import softmax
-from torchsummary import summary
+from torchvision import  transforms
 import torch.nn.functional as F
 
 
 
-!git clone "https://github.com/basujindal/CS69.git"
-!mkdir data
-!mkdir "/content/data/train"
-!unzip -q "/content/CS69/train.zip" -d "/content/data/train" 
-!unzip -q "/content/CS69/train2.zip" -d "/content/data/train" 
-!unzip -q "/content/CS69/val_test.zip" -d "/content/data"
+# !git clone "https://github.com/basujindal/CS69.git"
+# !mkdir data
+# !mkdir "/content/data/train"
+# !unzip -q "/content/CS69/train.zip" -d "/content/data/train" 
+# !unzip -q "/content/CS69/train2.zip" -d "/content/data/train" 
+# !unzip -q "/content/CS69/val_test.zip" -d "/content/data"
 
 
 
@@ -142,8 +134,6 @@ def val(loader):
 
 net = Net().to(device)
 print(net)
-summary(net, (3,84,84))
-
 
 net = Net().to(device)
 criterion = nn.CrossEntropyLoss()
