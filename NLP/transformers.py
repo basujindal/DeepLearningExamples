@@ -11,173 +11,63 @@ import sys
 from tqdm import tqdm
 import torch.nn as nn
 import time
+import argparse
 import torch.nn.functional as F
 import random
 import wandb
+from customTransformers import CustomTransformer 
 
-with open('datasets/en_tokenized.pkl', 'rb') as f:
+filePath = os.path.dirname(os.path.realpath(__file__)) + '/'
+
+# print("Loading data...")
+with open(filePath + '../data/en_tokenized.pkl', 'rb') as f:
     en_tokens = pickle.load(f)
 
-with open('datasets/de_tokenized.pkl', 'rb') as f:
+with open(filePath + '../data/de_tokenized.pkl', 'rb') as f:
     de_tokens = pickle.load(f)
 
-print(len(en_tokens))
+print("Number of training examples = ", len(en_tokens))
 assert(len(de_tokens) == len(en_tokens))
 
+tokenizer_de = Tokenizer.from_file(filePath + "../data/tokenizer_de_25000.json")
+tokenizer_en = Tokenizer.from_file(filePath + "../data/tokenizer_en_25000.json")
 
-tokenizer_de = Tokenizer.from_file("tokenizer_de_25000_start_token_SOS.json")
-tokenizer_en = Tokenizer.from_file("tokenizer_en_25000_start_token_SOS.json")
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, h, edim):
-        super().__init__()
-
-        self.h = h
-        self.edim = edim
-        self.dk = self.edim//self.h
-        self.key = nn.Linear(self.edim,self.edim)
-        self.query = nn.Linear(self.edim,self.edim)
-        self.value = nn.Linear(self.edim,self.edim)
-        self.linear = nn.Linear(self.edim,self.edim)
-        
-
-    def forward(self, key, value,query, mask = None):
-
-        bs = key.shape[0]
-        nwords_key = key.shape[1]
-        nwords_query = query.shape[1]
-
-        k = self.key(key).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
-        q = self.query(query).reshape(bs, nwords_query, self.h, self.dk).transpose(1,2)
-        v = self.value(value).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
-        x = torch.einsum('bhmd,bhnd -> bhmn',(q,k))
-        
-        if mask != None:
-            x = x.masked_fill(mask == False, float("-1e10"))
-
-        x = F.softmax(x/(self.dk)**0.5, dim=3)
-
-        x = torch.einsum('bhmn,bhnv -> bhmv', (x,v))
-        x = x.transpose(1,2)
-
-        x = x.reshape(bs, nwords_query, -1)
-        x = self.linear(x)
-        return x
-    
-
-class EncoderBlock(nn.Module):
-    def __init__(self, edim, h, hdim, dropout):
-        super().__init__()
-
-        self.multiHeadAttention = MultiHeadAttention(h, edim)
-        self.norm1 = nn.LayerNorm(edim)
-        self.norm2 = nn.LayerNorm(edim)
-        self.fc1 = nn.Linear(edim, hdim)
-        self.fc2 = nn.Linear(hdim, edim)
-        self.relu = nn.ReLU()
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
+parser = argparse.ArgumentParser(description='Transformer')
+parser.add_argument('--nx', type=int, default=6, help='number of encoder and decoder blocks')
+parser.add_argument('--edim', type=int, default=512, help='embedding dimension')
+parser.add_argument('--hdim', type=int, default=2048, help='hidden dimension')
+parser.add_argument('--h', type=int, default=8, help='number of heads')
+parser.add_argument('--src_vocab_size', type=int, default=25000, help='source vocabulary size')
+parser.add_argument('--tgt_vocab_size', type=int, default=25000, help='target vocabulary size')
+parser.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
+parser.add_argument('--bs', type=int, default=32, help='batch size')
+parser.add_argument('--src_pad_idx', type=int, default=0, help='source padding index')
+parser.add_argument('--tgt_pad_idx', type=int, default=2, help='target padding index')
+parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
+parser.add_argument('--max_nwords', type=int, default=100, help='maximum number of words')
+parser.add_argument('--val_steps', type=int, default=10000, help='validate after n steps')
+parser.add_argument('--logging', type=bool, default=True, help='logging')
+parser.add_argument('--save_freq', type=int, default=10000, help='save frequency steps')
 
 
-    def forward(self, src_embed, src_mask):
+args = parser.parse_args()
 
-        x = self.multiHeadAttention(src_embed,src_embed,src_embed, src_mask)
-        x = self.dropout1(x)
-        subLayer1 = self.norm1(x + src_embed)
-
-        x = self.fc2(self.relu(self.fc1(subLayer1)))
-        x = self.dropout2(x)
-        subLayer2 = self.norm2(x + subLayer1)
-
-        return subLayer2
-
-class DecoderBlock(nn.Module):
-    def __init__(self,edim, h, hdim, dropout):
-        super().__init__()
-
-        self.multiHeadAttention = MultiHeadAttention(h, edim)
-        self.maskedMultiHeadAttention = MultiHeadAttention(h, edim)
-        self.norm1 = nn.LayerNorm(edim)
-        self.norm2 = nn.LayerNorm(edim)
-        self.norm3 = nn.LayerNorm(edim)
-        self.fc1 = nn.Linear(edim, hdim)
-        self.fc2 = nn.Linear(hdim, edim)
-        self.relu = nn.ReLU()
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
-
-    def forward(self, tgt_embed, src_encoded, src_mask, tgt_mask):
-
-        x = self.maskedMultiHeadAttention(tgt_embed, tgt_embed, tgt_embed, tgt_mask)
-        x = self.dropout1(x)
-        subLayer1 = self.norm1(x + tgt_embed)
-
-        x = self.multiHeadAttention(src_encoded, src_encoded, subLayer1, src_mask)
-        x = self.dropout2(x)
-        subLayer2 = self.norm2(x + subLayer1)
-
-        x = self.fc2(self.relu(self.fc1(subLayer2)))
-        x = self.dropout3(x)
-        subLayer3 = self.norm3(x + subLayer2)
-        
-        return subLayer3
-
-
-class Encoder(nn.Module):
-    def __init__(self, nx, edim, h, hdim,dropout):
-        super().__init__()
-
-        self.nx = nx
-        self.transformers = nn.ModuleList([EncoderBlock(edim, h, hdim,dropout) for _ in range(nx)])
-
-    def forward(self, src_embed, src_mask):
-        for block in self.transformers:
-            embed = block(src_embed, src_mask)
-        return embed
-
-class Decoder(nn.Module):
-    def __init__(self, nx, edim, h, hdim,dropout):
-        super().__init__()
-
-        self.nx = nx
-        self.transformers = nn.ModuleList([DecoderBlock(edim, h, hdim,dropout) for _ in range(nx)])
-
-    def forward(self, encoded, tgt_embed, src_mask, tgt_mask):
-
-        for block in self.transformers:
-            embed = block(tgt_embed, encoded, src_mask, tgt_mask)
-        return embed
-
-
-class CustomTransformer(nn.Module):
-    def __init__(self, nx, edim, h, hdim, dropout, src_vocab_size, tgt_vocab_size):
-        super().__init__()
-        self.tgt_vocab_size = tgt_vocab_size
-        self.src_embedding = nn.Embedding(src_vocab_size,edim)
-        self.tgt_embedding = nn.Embedding(tgt_vocab_size,edim)
-        self.encoder = Encoder(nx, edim, h, hdim,dropout)
-        self.decoder = Decoder(nx, edim, h, hdim,dropout)
-        self.fc = nn.Linear(edim, tgt_vocab_size)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-
-    def forward(self, src_tokens, tgt_tokens, src_mask, tgt_mask, src_pos_embed, tgt_pos_embed, encoded = None):
-        
-        if encoded == None:
-
-            src_embed = self.src_embedding(src_tokens) + src_pos_embed
-            src_embed = self.dropout1(src_embed)
-            encoded = self.encoder(src_embed, src_mask)
-
-        tgt_embed = self.tgt_embedding(tgt_tokens) + tgt_pos_embed
-        tgt_embed = self.dropout2(tgt_embed)
-        
-        decoded = self.decoder(encoded, tgt_embed, src_mask, tgt_mask)
-        output = self.fc(decoded)
-
-        return output, encoded
+nx = 6
+edim = 512
+hdim = 2048
+h = 8
+src_vocab_size = 25000
+tgt_vocab_size = 25000
+n_epochs = 10
+src_pad_idx = 0
+tgt_pad_idx = 2
+dropout = 0.1
+max_nwords = 100
+n_epochs = 100
+val_steps = 10000
+logging = True
+bs = 128
+save_freq_steps = 10000
 
 
 def loader(en_tokens, de_tokens, bs, src_pad_idx, tgt_pad_idx, device, shuffle = True):
@@ -315,27 +205,8 @@ def validate(val_en_tokens, val_de_tokens, bs):
         correct = (predicted == labels).sum().item()
         return correct, total
 
-
-
-nx = 6
-edim = 512
-hdim = 2048
-h = 8
-src_vocab_size = 25000
-tgt_vocab_size = 25000
-n_epochs = 10
-bs = 32
-src_pad_idx = 0
-tgt_pad_idx = 2
-dropout = 0.1
-max_nwords = 100
-n_epochs = 100
-val_steps = 10000
-val_accu = 0
-logging = False
-bs = 32
 step = 0
-
+val_accu = 0
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
@@ -345,12 +216,11 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(net.parameters(), betas=[0.9, 0.98])
 scheduler = NoamOpt(edim,2500,optimizer)
 
-PATH = "saved_models/n_steps_" + str(step)
-state = torch.load(PATH)
-net.load_state_dict(state['state_dict'])
-optimizer.load_state_dict(state['optimizer'])
-scheduler._step = state['scheduler_step']
-
+# PATH = "saved_models/n_steps_" + str(step)
+# state = torch.load(PATH)
+# net.load_state_dict(state['state_dict'])
+# optimizer.load_state_dict(state['optimizer'])
+# scheduler._step = state['scheduler_step']
 
 max_idxs = remove_large_Sentences(en_tokens, de_tokens, max_nwords)
 en_tokens = [en_tokens[i] for i in max_idxs]
@@ -359,7 +229,7 @@ assert(len(de_tokens) == len(en_tokens))
 posEmb = positionEmbeding(edim, max_nwords).to(device)
 
 if logging:
-    wandb.init(project="transformers")
+    wandb.init(project="transformers", entity='basujindal123')
     wandb.config = {
     "nsteps": 500000,
     "batch_size": bs
@@ -408,34 +278,34 @@ for epoch in range(n_epochs):  # loop over the dataset multiple times
                 "validation accuracy": val_accu,
                 })
         
-        if(step%5000 == 0):
-            PATH = "saved_models/n_steps_" + str(step)
+        if(step%save_freq_steps == 0):
+            PATH = "n_steps_" + str(step)
             save_model(PATH)
 
         
-        if step % val_steps == 0: 
-            val_accu = validate(val_en_tokens, val_de_tokens, bs)
-            print("step {0} | loss: {1:.4f} | Val Accuracy: {2:.3f} %".format(epoch, loss, val_accu))
+        # if step % val_steps == 0: 
+        #     val_accu = validate(val_en_tokens, val_de_tokens, bs)
+        #     print("step {0} | loss: {1:.4f} | Val Accuracy: {2:.3f} %".format(epoch, loss, val_accu))
 
-            if val_accu > best_accu:
-              best_accu = val_accu 
-              torch.save(net.state_dict(), 'net_val.pth')
-              print("Saving")
+        #     if val_accu > best_accu:
+        #       best_accu = val_accu 
+        #       torch.save(net.state_dict(), 'net_val.pth')
+        #       print("Saving")
 
-            net.train()
+        #     net.train()
 
 
 
 print('Finished Training')
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(device)
-net = CustomTransformer(nx, edim, h, hdim, dropout, src_vocab_size, tgt_vocab_size).to(device)
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# print(device)
+# net = CustomTransformer(nx, edim, h, hdim, dropout, src_vocab_size, tgt_vocab_size).to(device)
 
-step = 65000
-PATH = "saved_models/n_steps_" + str(step)
-state = torch.load(PATH)
-net.load_state_dict(state['state_dict'])
+# step = 65000
+# PATH = "saved_models/n_steps_" + str(step)
+# state = torch.load(PATH)
+# net.load_state_dict(state['state_dict'])
 
 sentence = "Please don't do this"
 translate(sentence, net, device)
