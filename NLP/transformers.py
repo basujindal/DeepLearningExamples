@@ -1,4 +1,4 @@
-from tokenizers import decoders, models, normalizers, pre_tokenizers, processors, trainers, Tokenizer
+from tokenizers import Tokenizer
 import torch
 import pickle
 from re import sub
@@ -19,18 +19,6 @@ from customTransformers import CustomTransformer
 
 filePath = os.path.dirname(os.path.realpath(__file__)) + '/'
 
-# print("Loading data...")
-with open(filePath + '../data/en_tokenized.pkl', 'rb') as f:
-    en_tokens = pickle.load(f)
-
-with open(filePath + '../data/de_tokenized.pkl', 'rb') as f:
-    de_tokens = pickle.load(f)
-
-print("Number of training examples = ", len(en_tokens))
-assert(len(de_tokens) == len(en_tokens))
-
-tokenizer_de = Tokenizer.from_file(filePath + "../data/tokenizer_de_25000.json")
-tokenizer_en = Tokenizer.from_file(filePath + "../data/tokenizer_en_25000.json")
 
 parser = argparse.ArgumentParser(description='Transformer')
 parser.add_argument('--nx', type=int, default=6, help='number of encoder and decoder blocks')
@@ -40,35 +28,71 @@ parser.add_argument('--h', type=int, default=8, help='number of heads')
 parser.add_argument('--src_vocab_size', type=int, default=25000, help='source vocabulary size')
 parser.add_argument('--tgt_vocab_size', type=int, default=25000, help='target vocabulary size')
 parser.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
-parser.add_argument('--bs', type=int, default=32, help='batch size')
+parser.add_argument('--bs', type=int, default=128, help='batch size')
 parser.add_argument('--src_pad_idx', type=int, default=0, help='source padding index')
 parser.add_argument('--tgt_pad_idx', type=int, default=2, help='target padding index')
 parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
 parser.add_argument('--max_nwords', type=int, default=100, help='maximum number of words')
-parser.add_argument('--val_steps', type=int, default=10000, help='validate after n steps')
-parser.add_argument('--logging', type=bool, default=True, help='logging')
-parser.add_argument('--save_freq', type=int, default=10000, help='save frequency steps')
-
+parser.add_argument('--val_steps', type=int, default=500, help='validate after n steps')
+parser.add_argument('--log_wandb', type=bool, default=False, help='log_wandb')
+parser.add_argument('--save_freq_steps', type=int, default=10000, help='save frequency steps')
+parser.add_argument('--use_amp', type=bool, default=False, help='use automatic mixed precision')
+parser.add_argument('--d1_datapath', type=str, default='../data/en_tokens.pkl', help='dataset 1 path')
+parser.add_argument('--d2_datapath', type=str, default='../data/de_tokens.pkl', help='dataset 2 path')
+parser.add_argument('--d1_tokenizer', type=str, default="../data/tokenizer_en_25000.json", help='dataset 1 tokenizer')
+parser.add_argument('--d2_tokenizer', type=str, default="../data/tokenizer_de_25000.json", help='dataset 2 tokenizer')
+parser.add_argument('--load_path', type=str, default="n_steps_2000.pth", help='load saved model path')
+parser.add_argument('--load_model', type=bool, default=False, help='load saved model')
 
 args = parser.parse_args()
 
-nx = 6
-edim = 512
-hdim = 2048
-h = 8
-src_vocab_size = 25000
-tgt_vocab_size = 25000
-n_epochs = 10
-src_pad_idx = 0
-tgt_pad_idx = 2
-dropout = 0.1
-max_nwords = 100
-n_epochs = 100
-val_steps = 10000
-logging = True
-bs = 128
-save_freq_steps = 10000
+##  python data/DeepLearningExamples/NLP/transformers.py --use_amp True --bs 256 --nx 6 --log_wandb False --d1_datapath ../data/en_hin/d1_tokenized.pkl --d2_datapath ../data/en_hin/d2_tokenized.pkl --d1_tokenizer ../data/en_hin/tokenizer_d1_25000.json --d2_tokenizer ../data/en_hin/tokenizer_d2_25000.json
 
+
+use_amp = args.use_amp
+nx = args.nx
+edim = args.edim
+hdim = args.hdim
+h =  args.h
+src_vocab_size = args.src_vocab_size
+tgt_vocab_size = args.tgt_vocab_size
+n_epochs = args.n_epochs
+bs = args.bs
+src_pad_idx = args.src_pad_idx
+tgt_pad_idx = args.tgt_pad_idx
+dropout = args.dropout
+max_nwords = args.max_nwords
+val_steps = args.val_steps
+log_wandb = args.log_wandb
+save_freq_steps = args.save_freq_steps
+d1_datapath = args.d1_datapath
+d2_datapath = args.d2_datapath
+d1_tokenizer = args.d1_tokenizer
+d2_tokenizer = args.d2_tokenizer
+load_path = args.load_path
+load_model = args.load_model
+
+
+print("Loading data...")
+
+start = time.time()
+
+with open(filePath + d1_datapath, 'rb') as f:
+    en_tokens = pickle.load(f)
+
+with open(filePath + d2_datapath, 'rb') as f:
+    de_tokens = pickle.load(f)
+
+print("Time to load data: ", time.time() - start, " seconds")
+
+print("Number of training examples =  ", len(en_tokens))
+assert(len(de_tokens) == len(en_tokens))
+
+tokenizer_en = Tokenizer.from_file(filePath + d1_tokenizer)
+tokenizer_de = Tokenizer.from_file(filePath + d2_tokenizer)
+
+assert all([len(de) > 0 for de in de_tokens])
+assert all([len(en) > 0 for en in en_tokens])
 
 def loader(en_tokens, de_tokens, bs, src_pad_idx, tgt_pad_idx, device, shuffle = True):
     num_batches = len(en_tokens)//bs
@@ -163,9 +187,6 @@ def translate(sentence, net, device):
     output, encoded = net(src, tgt, src_mask, tgt_mask, src_pos_embed, tgt_pos_embed)
 
     _, predicted_idx = torch.max(output.data[0], 1)
-    print(tgt)
-    print(predicted_idx.tolist())
-    print(tokenizer_de.decode(predicted_idx.tolist()))
 
 
     idx = 0
@@ -175,12 +196,12 @@ def translate(sentence, net, device):
         tgt_mask =  torch.ones(1, tgt.shape[-1], tgt.shape[-1]).tril().unsqueeze(1).to(device)
         output, _ = net(src, tgt, src_mask, tgt_mask, src_pos_embed, tgt_pos_embed, encoded)
         _, predicted_idx = torch.max(output.data[0], 1)
-        print(predicted_idx.tolist())
-        print(tokenizer_de.decode(predicted_idx.tolist()))
         idx+=1
 
         if(idx == max_nwords):
             break
+    print(predicted_idx.tolist())
+    print(tokenizer_de.decode(predicted_idx.tolist()))
 
 
 def validate(val_en_tokens, val_de_tokens, bs):
@@ -209,18 +230,26 @@ step = 0
 val_accu = 0
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(device)
+print("Using device: ", device)
 net = CustomTransformer(nx, edim, h, hdim, dropout, src_vocab_size, tgt_vocab_size).to(device)
+
+## Get number of trainable parameters
+
+def count_parameters(model):
+    
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+print(f'The model has {count_parameters(net):,} trainable parameters')
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(net.parameters(), betas=[0.9, 0.98])
 scheduler = NoamOpt(edim,2500,optimizer)
 
-# PATH = "saved_models/n_steps_" + str(step)
-# state = torch.load(PATH)
-# net.load_state_dict(state['state_dict'])
-# optimizer.load_state_dict(state['optimizer'])
-# scheduler._step = state['scheduler_step']
+if load_model == True:
+    state = torch.load(load_path)
+    net.load_state_dict(state['state_dict'])
+    optimizer.load_state_dict(state['optimizer'])
+    scheduler._step = state['scheduler_step']
 
 max_idxs = remove_large_Sentences(en_tokens, de_tokens, max_nwords)
 en_tokens = [en_tokens[i] for i in max_idxs]
@@ -228,12 +257,14 @@ de_tokens = [de_tokens[i] for i in max_idxs]
 assert(len(de_tokens) == len(en_tokens))
 posEmb = positionEmbeding(edim, max_nwords).to(device)
 
-if logging:
+if log_wandb == True:
     wandb.init(project="transformers", entity='basujindal123')
     wandb.config = {
     "nsteps": 500000,
     "batch_size": bs
     }
+
+scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
 net.train()
 for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -248,20 +279,22 @@ for epoch in range(n_epochs):  # loop over the dataset multiple times
         src_pos_embed = posEmb[:src.shape[1]].unsqueeze(0)
         tgt_pos_embed = posEmb[:tgt.shape[1]].unsqueeze(0)
 
-        optimizer.zero_grad()
+        
         # with torch.cuda.amp.autocast():
-        outputs, _ = net(src, tgt, src_mask, tgt_mask, src_pos_embed, tgt_pos_embed)
+        with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=use_amp):
+            outputs, _ = net(src, tgt, src_mask, tgt_mask, src_pos_embed, tgt_pos_embed)
 
-        li = [outputs[ii][:tgt_lens[ii]-1] for ii in range(outputs.shape[0])]
-        probs = torch.cat(li, dim = 0)
-        loss = criterion(probs, labels)   
+            li = [outputs[ii][:tgt_lens[ii]-1] for ii in range(outputs.shape[0])]
+            probs = torch.cat(li, dim = 0)
+            loss = criterion(probs, labels)   
 
-        # scaler.scale(loss).backward()
-        # scaler.step(optimizer)
-        # scaler.update()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        # loss.backward()
+        # optimizer.step()
 
-        loss.backward()
-        optimizer.step()
+        optimizer.zero_grad()
         predicted = torch.max(probs, 1)[1]
         
         total = labels.size(0)
@@ -270,7 +303,7 @@ for epoch in range(n_epochs):  # loop over the dataset multiple times
         if step%2:
             scheduler.step()
 
-        if logging:
+        if log_wandb:
             wandb.log(
                 {"loss": loss.data,
                 "lr": scheduler._rate,
@@ -279,11 +312,16 @@ for epoch in range(n_epochs):  # loop over the dataset multiple times
                 })
         
         if(step%save_freq_steps == 0):
-            PATH = "n_steps_" + str(step)
-            save_model(PATH)
+            PATH = "n_steps_k_v" + str(step) + ".pth"
+            save_model(filePath + PATH)
 
         
-        # if step % val_steps == 0: 
+        if step % val_steps == 0:
+            net.eval()
+            sentence = "Hello, how are you?"
+            print("Translating: ", sentence)
+            translate(sentence, net, device) 
+            net.train()
         #     val_accu = validate(val_en_tokens, val_de_tokens, bs)
         #     print("step {0} | loss: {1:.4f} | Val Accuracy: {2:.3f} %".format(epoch, loss, val_accu))
 

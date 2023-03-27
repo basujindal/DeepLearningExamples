@@ -3,3 +3,5 @@
 *saved_models
 *__pycache__
 *data
+*.pth
+test.ipynb
