@@ -15,6 +15,7 @@ import argparse
 import torch.nn.functional as F
 import random
 import wandb
+import torchtext
 from customTransformers import CustomTransformer 
 
 filePath = os.path.dirname(os.path.realpath(__file__)) + '/'
@@ -347,3 +348,20 @@ print('Finished Training')
 
 sentence = "Please don't do this"
 translate(sentence, net, device)
+
+## Calculate BLEU score
+
+def bleu_score(outputs, targets):
+    return torchtext.data.metrics.bleu_score(outputs, targets)
+
+def calculate_bleu(data, net, device, max_nwords = 50):
+    targets = []
+    outputs = []
+    for sentence in data:
+        target = sentence[1:]
+        output = translate(sentence[0], net, device, max_nwords)
+        targets.append(target)
+        outputs.append(output)
+    return bleu_score(outputs, targets)
+
+print("BLEU score: ", calculate_bleu(val_en_tokens, net, device))

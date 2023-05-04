@@ -91,13 +91,13 @@ def get_data_loader(args):
                                 imgC = args.imgC,
                                 imgTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize(image_size),
+                                    transforms.Resize((image_size,image_size)),
                                     transforms.ToTensor(),
-                                    transforms.Normalize((0.5)*args.imgC, (0.5)*args.imgC),
+                                    transforms.Normalize((0.5), (0.5)),
                                 ]),
                                 maskTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize(image_size),
+                                    transforms.Resize((image_size,image_size)),
                                     transforms.ToTensor(),
                                 ]), maskExt="png", num_images = args.num_images,)
 
@@ -108,10 +108,18 @@ def get_data_loader(args):
                                 imgC = args.imgC,
                                 imgTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize(image_size),
+                                    transforms.Resize((image_size,image_size)),                 
                                     transforms.ToTensor(),
-                                    transforms.Normalize((0.5)*args.imgC, (0.5)*args.imgC),]),
+                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),]),
                                     num_images = args.num_images,)
+
+        # train_dataset = dset.ImageFolder(root=dataroot,
+        #                    transform=transforms.Compose([
+        #                        transforms.Resize(image_size),
+        #                        transforms.CenterCrop(image_size),
+        #                        transforms.ToTensor(),
+        #                        transforms.Normalize((0.5), (0.5)),
+        #                    ]))
     
 
     return train_dataset
