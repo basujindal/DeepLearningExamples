@@ -6,6 +6,44 @@ import torchvision.transforms as transforms
 from skimage import io
 from torch.utils.data import Dataset
 
+def load_imagenet_train_data(path, idx):
+    data_dir = os.path.join(path , "train")
+    train_data = np.load(os.path.join(data_dir, 'train_data_batch_' + str(idx) + '.npz'))
+    return train_data['data'], train_data['labels']
+
+class BatchDataImageNet(Dataset):
+
+    def __init__(self, Path, imgTransform=None, num_images = None):
+        self.path = Path
+
+        self.img_trans = imgTransform
+
+        self.allImgs, self.allLabels = load_imagenet_train_data(Path, idx)
+
+        if num_images == None:
+            num_images = len(self.imgs)
+        for idx in tqdm(range(num_images)):
+
+            if self.transform:
+                image = self.image_trans(image)
+                mask = self.transform(mask)
+            
+            self.allImgs[idx] = image.squeeze(0)
+            self.allMasks[idx] = mask.squeeze(0)
+
+        # self.final.to("cuda")
+
+    train_data, train_labels = load_imagenet_train_data(1)
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        return self.allImgs[idx], self.allMasks[idx]
+    
 
 class BatchDataImageMask(Dataset):
 
