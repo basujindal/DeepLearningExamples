@@ -16,8 +16,10 @@ class UpTranspose2d(nn.Module):
         super().__init__()
 
         self.upTrans = nn.ConvTranspose2d(ch_in, ch_out, kernel_size=kernelSize, stride = stride, padding=(kernelSize//2 - 1))
-        self.norm = nn.InstanceNorm2d(ch_out, affine=True)
-        self.actFn = nn.LeakyReLU(leak, inplace=True)
+        # self.norm = nn.InstanceNorm2d(ch_out, affine=True)
+        # self.actFn = nn.LeakyReLU(leak, inplace=True)
+        self.norm = nn.BatchNorm2d(ch_out)
+        self.actFn = nn.ReLU()
         
     def forward(self, image):
 
@@ -89,15 +91,16 @@ class DownConv2d(nn.Module):
     '''
     Halves input image size
     Using stride = 2 instead of Pooling.
-    Last Conv layer reduces size by 4
     '''
 
     def __init__(self, ch_in, ch_out,kernelSize):
         super().__init__()
 
         self.conv = nn.Conv2d(ch_in, ch_out, kernel_size=kernelSize, stride = 2, padding = kernelSize//2 - 1)
-        self.norm = nn.InstanceNorm2d(ch_out, affine=True)
-        self.actFn = nn.ReLU()
+        # self.norm = nn.InstanceNorm2d(ch_out, affine=True)
+        # self.actFn = nn.ReLU()
+        self.norm = nn.BatchNorm2d(ch_out)
+        self.actFn = nn.LeakyReLU(0.2)
         
     def forward(self, image):
 
@@ -110,11 +113,11 @@ class Discriminator(nn.Module):
 
         self.dis = nn.ModuleList([DownConv2d(channels[i], channels[i+1], kernelSize) for i in range(len(channels) - 2)])
         self.out = nn.Conv2d(in_channels=channels[-2], out_channels=channels[-1], kernel_size=kernelSize, stride = 2, padding = kernelSize//2 - 1)
-
+        self.sig = nn.Sigmoid()
     def forward(self, image):
         
         for block in self.dis:
             image = block(image)
         
-        image = self.out(image)
-        return image
+        output = self.sig(self.out(image))
+        return output

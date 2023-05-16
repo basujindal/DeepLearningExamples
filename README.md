@@ -5,9 +5,15 @@
 - All the notebooks use PyTorch to as the DL framework.
 - [Tips for training DL models](https://basujindal.me/python/deep%20learning/machine%20learning/computer%20vision/2021/06/15/tips-for-deep-learning.html)
 
-### Computer Vision
+## Computer Vision
 
 - [conv_example.py](CV/conv_example.py): Python code to train a Convolution NN on custom dataset, using pytorch dataloader. (End2end example)
+
+## GAN
+
+- Training challenges:
+-- Use small batch size especially if model is small, large batch size may train Discriminator very fast during early phase of training.    
+
 
 ### NLP
 

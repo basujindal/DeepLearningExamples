@@ -2,43 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# class MultiHeadAttention(nn.Module):
-#     def __init__(self, h, edim):
-#         super().__init__()
-
-#         self.h = h
-#         self.edim = edim
-#         self.dk = self.edim//self.h
-#         self.key = nn.Linear(self.edim,self.edim)
-#         self.query = nn.Linear(self.edim,self.edim)
-#         self.value = nn.Linear(self.edim,self.edim)
-#         self.linear = nn.Linear(self.edim,self.edim)
-        
-
-#     def forward(self, key, value,query, mask = None):
-
-#         bs = key.shape[0]
-#         nwords_key = key.shape[1]
-#         nwords_query = query.shape[1]
-
-#         k = self.key(key).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
-#         q = self.query(query).reshape(bs, nwords_query, self.h, self.dk).transpose(1,2)
-#         v = self.value(value).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
-#         x = torch.einsum('bhmd,bhnd -> bhmn',(q,k))
-        
-#         if mask != None:
-#             x = x.masked_fill(mask == False, float("-1e10"))
-
-#         x = F.softmax(x/(self.dk)**0.5, dim=3)
-
-#         x = torch.einsum('bhmn,bhnv -> bhmv', (x,v))
-#         x = x.transpose(1,2)
-
-#         x = x.reshape(bs, nwords_query, -1)
-#         x = self.linear(x)
-#         return x
-    
-
 class MultiHeadAttention(nn.Module):
     def __init__(self, h, edim):
         super().__init__()
@@ -48,7 +11,7 @@ class MultiHeadAttention(nn.Module):
         self.dk = self.edim//self.h
         self.key = nn.Linear(self.edim,self.edim)
         self.query = nn.Linear(self.edim,self.edim)
-        # self.value = nn.Linear(self.edim,self.edim)
+        self.value = nn.Linear(self.edim,self.edim)
         self.linear = nn.Linear(self.edim,self.edim)
         
 
@@ -60,7 +23,7 @@ class MultiHeadAttention(nn.Module):
 
         k = self.key(key).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
         q = self.query(query).reshape(bs, nwords_query, self.h, self.dk).transpose(1,2)
-        # v = self.value(value).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
+        v = self.value(value).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
         x = torch.einsum('bhmd,bhnd -> bhmn',(q,k))
         
         if mask != None:
@@ -68,12 +31,49 @@ class MultiHeadAttention(nn.Module):
 
         x = F.softmax(x/(self.dk)**0.5, dim=3)
 
-        x = torch.einsum('bhmn,bhnv -> bhmv', (x,k))
+        x = torch.einsum('bhmn,bhnv -> bhmv', (x,v))
         x = x.transpose(1,2)
 
         x = x.reshape(bs, nwords_query, -1)
         x = self.linear(x)
         return x
+    
+
+# class MultiHeadAttention(nn.Module):
+#     def __init__(self, h, edim):
+#         super().__init__()
+
+#         self.h = h
+#         self.edim = edim
+#         self.dk = self.edim//self.h
+#         self.key = nn.Linear(self.edim,self.edim)
+#         self.query = nn.Linear(self.edim,self.edim)
+#         # self.value = nn.Linear(self.edim,self.edim)
+#         self.linear = nn.Linear(self.edim,self.edim)
+        
+
+#     def forward(self, key, value,query, mask = None):
+
+#         bs = key.shape[0]
+#         nwords_key = key.shape[1]
+#         nwords_query = query.shape[1]
+
+#         k = self.key(key).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
+#         q = self.query(query).reshape(bs, nwords_query, self.h, self.dk).transpose(1,2)
+#         # v = self.value(value).reshape(bs, nwords_key, self.h, self.dk).transpose(1,2)
+#         x = torch.einsum('bhmd,bhnd -> bhmn',(q,k))
+        
+#         if mask != None:
+#             x = x.masked_fill(mask == False, float("-1e10"))
+
+#         x = F.softmax(x/(self.dk)**0.5, dim=3)
+
+#         x = torch.einsum('bhmn,bhnv -> bhmv', (x,k))
+#         x = x.transpose(1,2)
+
+#         x = x.reshape(bs, nwords_query, -1)
+#         x = self.linear(x)
+#         return x
 
 
 class EncoderBlock(nn.Module):
