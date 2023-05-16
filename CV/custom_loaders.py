@@ -21,6 +21,7 @@ class BatchDataImageMask(Dataset):
 
         if num_images == None:
             num_images = len(self.imgs)
+
         for idx in tqdm(range(num_images)):
             
             mask_path = os.path.join(maskPath, self.imgs[idx][:-3] + self.maskExt)
@@ -28,8 +29,6 @@ class BatchDataImageMask(Dataset):
 
             img_path = os.path.join(imgPath, self.imgs[idx])
             image = io.imread(img_path)
-            # if len(mask.shape) < 3:
-            #     image = np.expand_dims(image, axis = 2)
 
             if self.transform:
                 image = self.image_trans(image)
@@ -52,20 +51,26 @@ class BatchDataImageMask(Dataset):
 
 class BatchDataImages(Dataset):
 
-    def __init__(self, imgPath, imgSize, imgC,imgTransform=None, num_images = None):
+    def __init__(self, imgPath, imgSize, imgC,imgTransform=None, num_images = None, convert2bw = False):
 
         self.transform = imgTransform
         self.imgs = os.listdir(imgPath)
-        self.allImgs = torch.zeros([len(self.imgs),imgC, imgSize,imgSize], dtype=torch.float32)
 
         if num_images == None:
             num_images = len(self.imgs)
+
+        self.allImgs = torch.zeros([num_images,imgC, imgSize,imgSize], dtype=torch.float32)
+
         for idx in tqdm(range(num_images)):
             
             img_path = os.path.join(imgPath, self.imgs[idx])
 
             # Opens image in uint format
             image = io.imread(img_path)
+
+            if convert2bw:
+                if len(image.shape) == 3:
+                    image = image[:,:,0]
 
             # toPILImage converts the image to (0,1) range
             if self.transform:
@@ -75,8 +80,8 @@ class BatchDataImages(Dataset):
         # self.final.to("cuda")
 
     def __len__(self):
-        return len(self.imgs)
-
+        return self.allImgs.shape[0]
+                   
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -108,10 +113,10 @@ def get_data_loader(args):
                                 imgC = args.imgC,
                                 imgTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize(image_size),
+                                    transforms.Resize((image_size, image_size)),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.5)*args.imgC, (0.5)*args.imgC),]),
-                                    num_images = args.num_images,)
+                                    num_images = args.num_images,convert2bw=args.convert2bw)
     
 
     return train_dataset

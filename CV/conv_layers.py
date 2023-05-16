@@ -5,10 +5,11 @@ import torch.nn as nn
 class UpTranspose2d(nn.Module):
 
     '''
+    input image dimensions: (N, C_in, H_in, W_in)
     Doubles input image size
     Stride assumed to be 2 and padding depends on kernel size.
-    Leaky ReLu generally used in GANs & BatchNorm does not preserve the independence between images,
-    therefore instance norm used.
+    Leaky ReLu generally used in GANs & BatchNorm does not preserve the 
+    independence between images, therefore instance norm used.
     '''
 
     def __init__(self, ch_in, ch_out, kernelSize = 4, leak = 0.2, stride = 2):
@@ -27,8 +28,10 @@ class UpTranspose2d(nn.Module):
 class UpSampleConv(nn.Module):
 
     '''
+    input image dimensions: (N, C_in, H_in, W_in)
     Doubles input image size
-    Nearest Neighbour Upsample doubles image size followed by two Conv Layers as used in ResNet
+    Nearest Neighbour Upsample doubles image size followed by 
+    two Conv Layers as used in ResNet
     '''
 
     def __init__(self, ch_in, ch_out,kernelSize = 3, mode = 'nearest'):
