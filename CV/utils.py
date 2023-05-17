@@ -12,6 +12,7 @@ from ignite.engine import Engine
 import PIL.Image as Image
 from torchvision import transforms
 
+    
 
 def get_reconstructed(model, loader, device, num_imgs=4):
     num_imgs = 5
@@ -26,19 +27,10 @@ def get_reconstructed(model, loader, device, num_imgs=4):
 
     return data[:num_imgs], x_hat[:num_imgs]
 
-def sample_images(model, device ,num_imgs=16, latent_len=256):
-     
-    model.eval()
-    with torch.no_grad():
-        sample = torch.randn(num_imgs, latent_len, 1, 1).to(device)
-        sample = model.D(sample).cpu()
 
-    return sample
+def show_images(model, device, test_loader, num_imgs=8):
 
-
-def show_images(model, device, test_loader, num_imgs=8, latent_len=256):
-
-    sample = sample_images(model, device, num_imgs, latent_len)
+    sample = model.sample_images(num_imgs)
     data, recon = get_reconstructed(model, test_loader, device)
 
     fig, axs = plt.subplots(2, 8, figsize=(30, 7))
@@ -73,16 +65,9 @@ def PILinterpolate(batch):
         
     ans = torch.stack(arr)
     return ans
-
-def evaluation_step(engine, batch):
-    with torch.no_grad():
-        real = PILinterpolate(batch)
-        fake = get_fake(num_imgs=batch.shape[0])
-        fake = PILinterpolate(fake.cpu())
-        return fake, real
     
 
-def get_fid(loader, device): 
+def get_fid(loader, device, evaluation_step): 
 
     fid_metric = FID(device=device)
     is_metric = InceptionScore(device=device, output_transform=lambda x: x[0])
