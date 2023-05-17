@@ -1,11 +1,4 @@
-import os
-import numpy as np
 import torch
-from tqdm import tqdm
-import torch.nn as nn
-import torch.utils.data as data_utils
-
-from tqdm import trange
 import matplotlib.pyplot as plt
 from ignite.metrics import FID, InceptionScore
 from ignite.engine import Engine
@@ -13,7 +6,6 @@ import PIL.Image as Image
 from torchvision import transforms
 
     
-
 def get_reconstructed(model, loader, device, num_imgs=4):
     num_imgs = 5
 
