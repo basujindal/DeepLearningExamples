@@ -52,7 +52,8 @@ def PILinterpolate(batch):
         pil_img = transforms.ToPILImage()(img)
         resized_img = pil_img.resize((299,299), Image.BILINEAR)
         img = transforms.ToTensor()(resized_img)
-        img = img.repeat(3, 1, 1)
+        if img.shape[0] == 1:
+            img = img.repeat(3, 1, 1)
         arr.append(img)
         
     ans = torch.stack(arr)

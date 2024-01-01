@@ -10,6 +10,10 @@ class UpTranspose2d(nn.Module):
     Stride assumed to be 2 and padding depends on kernel size.
     Leaky ReLu generally used in GANs & BatchNorm does not preserve the 
     independence between images, therefore instance norm used.
+    
+    output image size is given by:
+    H_out = (H_in - 1)*stride - 2*padding + kernel_size + output_padding
+    
     '''
 
     def __init__(self, ch_in, ch_out, kernelSize = 4, leak = 0.2, stride = 2):

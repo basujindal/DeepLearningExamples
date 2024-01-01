@@ -5,6 +5,7 @@ from tqdm import tqdm
 import torchvision.transforms as transforms
 from skimage import io
 from torch.utils.data import Dataset
+from PIL import Image
 
 # def load_imagenet_train_data(path, idx):
 #     data_dir = os.path.join(path , "train")
@@ -89,33 +90,33 @@ class BatchDataImageMask(Dataset):
 
 class BatchDataImages(Dataset):
 
-    def __init__(self, imgPath, imgSize, imgC,imgTransform=None, num_images = None, convert2bw = False):
+
+    def __init__(self, imgPath, imgSize, imgC,imgTransform, num_images = None, convert2bw = False, images = None):
 
         self.transform = imgTransform
-        self.imgs = os.listdir(imgPath)
 
-        if num_images == None:
-            num_images = len(self.imgs)
+        if num_images == None:  
+            if images is None:  
+                self.imgs = os.listdir(imgPath)
+                num_images = len(self.imgs)
+            else:
+                num_images = images.shape[0]
 
         self.allImgs = torch.zeros([num_images,imgC, imgSize,imgSize], dtype=torch.float32)
 
         for idx in tqdm(range(num_images)):
             
-            img_path = os.path.join(imgPath, self.imgs[idx])
-
-            # Opens image in uint format
-            image = io.imread(img_path)
-
+            if images is None:
+                img_path = os.path.join(imgPath, self.imgs[idx])
+                image = Image.open(img_path)
+            else:
+                image = Image.fromarray(images[idx])
+            
             if convert2bw:
-                if len(image.shape) == 3:
-                    image = image[:,:,0]
-
-            # toPILImage converts the image to (0,1) range
-            if self.transform:
-                image = self.transform(image)
+                image = image.convert('L')
+                
+            image = self.transform(image)
             self.allImgs[idx] = image.squeeze(0)
-
-        # self.final.to("cuda")
 
     def __len__(self):
         return self.allImgs.shape[0]
@@ -128,6 +129,25 @@ class BatchDataImages(Dataset):
 
 def get_data_loader(args):
 
+    '''
+    Function to get the data loader for the dataset. It can work with datapath or with preloaded images.
+    Normalizes the images between -1 and 1. 
+    If args.dataset == 'ImageMask', it loads the images and masks from the path and returns a tuple of (image, mask)
+    If args.dataset == 'GAN', it loads the images from the path and returns a tuple of (image)
+    
+    params:
+        image_size: resize image to this size using transforms.Resize
+        imgC: number of channels in the image
+        imgPath: path to the images, if images are already loaded, it is ignored
+        num_images: number of images to load, if None, load all images in the folder
+        convert2bw: convert images to black and white
+        images: if images are already loaded, pass them here
+        
+    returns:
+        train_dataset: torch.utils.data.Dataset object
+        
+    
+    '''
     if args.dataset == 'ImageMask':
         image_size = args.image_size
         train_dataset = BatchDataImageMask(imgPath=args.imagePath,imgSize = image_size, 
@@ -150,11 +170,12 @@ def get_data_loader(args):
         train_dataset = BatchDataImages(imgPath=args.imagePath,imgSize = image_size, 
                                 imgC = args.imgC,
                                 imgTransform=transforms.Compose([
-                                    transforms.ToPILImage(),
+                                    # transforms.ToPILImage(),
                                     transforms.Resize((image_size, image_size)),
                                     transforms.ToTensor(),
-                                    transforms.Normalize((0.5)*args.imgC, (0.5)*args.imgC),]),
-                                    num_images = args.num_images,convert2bw=args.convert2bw)
+                                    # Normalize image between -1 and 1
+                                    transforms.Normalize([0.5]*args.imgC, [0.5]*args.imgC),]),
+                                    num_images = args.num_images,convert2bw=args.convert2bw, images=args.images)
     
 
     return train_dataset

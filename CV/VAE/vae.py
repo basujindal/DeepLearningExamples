@@ -19,11 +19,8 @@ with open('config.py') as f:
     code = compile(f.read(), 'config.py', 'exec')
     exec(code)
 
-train_args = Args()
-train_dataset = custom_loaders.get_data_loader(train_args)
 
-## Load test data
-test_args = Args()
+train_dataset = custom_loaders.get_data_loader(train_args)
 test_dataset = custom_loaders.get_data_loader(test_args)
 
 

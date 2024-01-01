@@ -9,6 +9,10 @@
 
 - [conv_example.py](CV/conv_example.py): Python code to train a Convolution NN on custom dataset, using pytorch dataloader. (End2end example)
 
+- [GAN.ipynb](CV/conv_example.ipynb): Train a DCGAN on CelebA dataset to generate fake faces. 
+
+- [DCGAN.ipynb](CV/DCGAN.ipynb): Train a DCGAN on MNIST dataset to generate fake digits.
+
 ## GAN
 
 - Training challenges:
