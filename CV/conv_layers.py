@@ -55,40 +55,6 @@ class UpSampleConv(nn.Module):
         x = self.actFn1(self.norm1(self.conv1(image)))
         x = self.actFn2(self.norm2(self.conv2(x)))
         return x
-    
-class GeneratorTrans(nn.Module):
-
-    def __init__(self, channels, kernelSize=4):
-        super().__init__()
-
-        self.gen = nn.ModuleList([UpTranspose2d(channels[i], channels[i+1], kernelSize) for i in range(len(channels) - 2)])
-        self.output = nn.ConvTranspose2d(channels[-2], channels[-1], kernel_size=kernelSize, stride = 2, padding=(kernelSize//2 - 1))
-
-    def forward(self, image):
-            
-        for block in self.gen:
-            image = block(image)
-    
-        output = torch.tanh(self.output(image))
-        return output
-
-class GeneratorUpSample(nn.Module):
-
-    def __init__(self, channels, kernelSize=3):
-        super().__init__()
-
-        self.gen = nn.ModuleList([UpSampleConv(channels[i], channels[i+1], kernelSize) for i in range(len(channels) - 2)])
-        self.upSample = nn.Upsample(scale_factor=2, mode='nearest') 
-        self.output = nn.Conv2d(channels[-2], channels[-1], kernel_size=kernelSize, padding = (kernelSize-1)//2)
-
-
-    def forward(self, image):
-
-        for block in self.gen:
-            image = block(self.upSample(image))
-
-        output = torch.tanh(self.output(self.upSample(image)))
-        return output
 
 class DownConv2d(nn.Module):
 
@@ -111,17 +77,3 @@ class DownConv2d(nn.Module):
         x = self.actFn(self.norm(self.conv(image)))
         return x
 
-class Discriminator(nn.Module):
-    def __init__(self, channels, kernelSize=4):
-        super().__init__()
-
-        self.dis = nn.ModuleList([DownConv2d(channels[i], channels[i+1], kernelSize) for i in range(len(channels) - 2)])
-        self.out = nn.Conv2d(in_channels=channels[-2], out_channels=channels[-1], kernel_size=kernelSize, stride = 2, padding = kernelSize//2 - 1)
-        self.sig = nn.Sigmoid()
-    def forward(self, image):
-        
-        for block in self.dis:
-            image = block(image)
-        
-        output = self.sig(self.out(image))
-        return output
