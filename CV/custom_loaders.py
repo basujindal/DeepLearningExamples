@@ -91,16 +91,17 @@ class BatchDataImageMask(Dataset):
 class BatchDataImages(Dataset):
 
 
-    def __init__(self, imgPath, imgSize, imgC,imgTransform, num_images = None, convert2bw = False, images = None):
+    def __init__(self, imgPath, imgSize, imgC,imgTransform, num_images = None, convert2bw = False, images = None, **kwargs):
 
         self.transform = imgTransform
 
-        if num_images == None:  
-            if images is None:  
-                self.imgs = os.listdir(imgPath)
-                num_images = len(self.imgs)
-            else:
-                num_images = images.shape[0]
+         
+        if images is None:  
+            self.imgs = os.listdir(imgPath)
+            num_images = len(self.imgs) if num_images is None else num_images
+
+        else:
+            num_images = images.shape[0] if num_images is None else num_images
 
         self.allImgs = torch.zeros([num_images,imgC, imgSize,imgSize], dtype=torch.float32)
 
@@ -149,33 +150,31 @@ def get_data_loader(args):
     
     '''
     if args.dataset == 'ImageMask':
-        image_size = args.image_size
-        train_dataset = BatchDataImageMask(imgPath=args.imagePath,imgSize = image_size, 
+        train_dataset = BatchDataImageMask(imgPath=args.imgPath,imgSize = args.imgSize, 
                                 imgC = args.imgC,
                                 imgTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize((image_size,image_size)),
+                                    transforms.Resize((args.imgSize,args.imgSize)),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.5), (0.5)),
                                 ]),
                                 maskTransform=transforms.Compose([
                                     transforms.ToPILImage(),
-                                    transforms.Resize((image_size,image_size)),
+                                    transforms.Resize((args.imgSize,args.imgSize)),
                                     transforms.ToTensor(),
                                 ]), maskExt="png", num_images = args.num_images,)
 
     
     if args.dataset == 'GAN':
-        image_size = args.image_size
-        train_dataset = BatchDataImages(imgPath=args.imagePath,imgSize = image_size, 
-                                imgC = args.imgC,
+        train_dataset = BatchDataImages(
                                 imgTransform=transforms.Compose([
                                     # transforms.ToPILImage(),
-                                    transforms.Resize((image_size, image_size)),
+                                    transforms.Resize((args.imgSize, args.imgSize)),
                                     transforms.ToTensor(),
                                     # Normalize image between -1 and 1
                                     transforms.Normalize([0.5]*args.imgC, [0.5]*args.imgC),]),
-                                    num_images = args.num_images,convert2bw=args.convert2bw, images=args.images)
+                                    **args.__dict__
+                                    )
     
 
     return train_dataset
