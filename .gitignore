@@ -5,3 +5,5 @@
 *data
 *.pth
 test.ipynb
+.idea
+.vscode
